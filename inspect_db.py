@@ -1,15 +1,17 @@
+# inspect_db.py
 import sqlite3
-import os
+import pandas as pd
 
-db_path = os.path.join("data", "spotify.db")
-conn = sqlite3.connect(db_path)
-cur = conn.cursor()
+conn = sqlite3.connect("data/spotify.db")
 
-cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
-print("Tables :", cur.fetchall())
+print("Tables :")
+print(pd.read_sql("SELECT name FROM sqlite_master WHERE type='table';", conn))
 
-cur.execute("SELECT * FROM spotify_streams LIMIT 50;")
-for row in cur.fetchall():
-    print(row)
+print("\nspotify_tracks (5 lignes) :")
+try:
+    df = pd.read_sql("SELECT * FROM spotify_tracks LIMIT 5;", conn)
+    print(df)
+except Exception as e:
+    print("Erreur:", e)
 
 conn.close()

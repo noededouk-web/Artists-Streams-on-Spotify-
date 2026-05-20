@@ -9,3 +9,21 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# Credentials — NE JAMAIS COMMITER
+config.py
+.env
+*.env
+secrets.py
+
+# Données locales
+data/spotify.db
+data/exports/
+data/*.csv
+
+# Rapports binaires (régénérés depuis les données)
+*.pbix
+
+# Node
+frontend/node_modules/
+frontend/dist/
