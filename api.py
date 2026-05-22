@@ -13,6 +13,7 @@ Lancement :
     uvicorn api:app --reload --port 8000
 """
 
+import os
 import re
 import sqlite3
 from contextlib import asynccontextmanager
@@ -561,8 +562,103 @@ def pipeline_status(artist_name: str):
 
 
 # =========================
+# ENDPOINTS YOUTUBE
+# =========================
+
+youtube_jobs: dict = {}  # artist_name -> {status, done, total, current_track}
+
+def _run_youtube_job(artist_name: str):
+    from database.youtube import enrich_youtube
+    youtube_jobs[artist_name] = {"status": "running", "done": 0, "total": 0, "current": ""}
+
+    def progress(done, total, track):
+        youtube_jobs[artist_name] = {"status": "running", "done": done, "total": total, "current": track}
+
+    try:
+        result = enrich_youtube(artist_name, DB_PATH, progress_callback=progress)
+        youtube_jobs[artist_name] = {"status": "done", **result}
+    except Exception as e:
+        youtube_jobs[artist_name] = {"status": "error", "message": str(e)}
+
+
+@app.post("/artists/{artist_name}/youtube/enrich")
+def youtube_enrich(artist_name: str, background_tasks: BackgroundTasks):
+    """Lance l'enrichissement YouTube en arrière-plan (yt-dlp, sans quota API)."""
+    artist_name = _resolve_artist(artist_name)
+    if youtube_jobs.get(artist_name, {}).get("status") == "running":
+        return {"status": "already_running"}
+    background_tasks.add_task(_run_youtube_job, artist_name)
+    return {"status": "started"}
+
+
+@app.get("/artists/{artist_name}/youtube/enrich/status")
+def youtube_enrich_status(artist_name: str):
+    """Retourne la progression de l'enrichissement YouTube."""
+    artist_name = _resolve_artist(artist_name)
+    return youtube_jobs.get(artist_name, {"status": "idle"})
+
+
+@app.get("/artists/{artist_name}/youtube")
+def get_artist_youtube(artist_name: str):
+    """Retourne les vues YouTube par track pour un artiste."""
+    artist_name = _resolve_artist(artist_name)
+
+    try:
+        rows_df = _df("""
+            SELECT track_name, video_title, video_id, video_type,
+                   view_count, like_count, published_at
+            FROM youtube_streams
+            WHERE artist_name = ?
+              AND scraping_date = (
+                  SELECT MAX(scraping_date) FROM youtube_streams WHERE artist_name = ?
+              )
+            ORDER BY view_count DESC
+        """, [artist_name, artist_name])
+    except Exception:
+        return {"available": False, "tracks": []}
+
+    if rows_df.empty:
+        return {"available": False, "tracks": []}
+
+    tracks = []
+    for _, r in rows_df.iterrows():
+        tracks.append({
+            "trackName":  _safe(r["track_name"]),
+            "videoTitle": _safe(r["video_title"]),
+            "videoId":    _safe(r["video_id"]),
+            "type":       r["video_type"],
+            "views":      int(r["view_count"]),
+            "likes":      int(r["like_count"]),
+            "published":  _safe(r["published_at"]),
+        })
+
+    solo = [t for t in tracks if t["type"] == "solo"]
+    feat = [t for t in tracks if t["type"] == "feat"]
+
+    # Counts depuis Spotify — source de vérité pour la classification solo/feat
+    sp = _df(
+        "SELECT track_type, COUNT(DISTINCT track_name) AS n FROM spotify_streams WHERE artist_name = ? GROUP BY track_type",
+        [artist_name]
+    )
+    sp_counts = {row["track_type"]: int(row["n"]) for _, row in sp.iterrows()} if not sp.empty else {}
+
+    return {
+        "available":  True,
+        "totalViews": sum(t["views"] for t in tracks),
+        "soloCount":  sp_counts.get("solo", len(solo)),
+        "featCount":  sp_counts.get("feat", len(feat)),
+        "soloViews":  sum(t["views"] for t in solo),
+        "featViews":  sum(t["views"] for t in feat),
+        "tracks":     tracks,
+        "topVideos":  tracks[:15],
+    }
+
+
+
+# =========================
 # LANCEMENT
 # =========================
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port, reload=False)
