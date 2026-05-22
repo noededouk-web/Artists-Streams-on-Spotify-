@@ -1,0 +1,20 @@
+app = 'stream-analytics-front'
+primary_region = 'cdg'
+
+[build]
+  dockerfile = 'dockerfile'
+
+[env]
+  API_URL = 'https://stream-analytics-api.fly.dev'
+
+[[services]]
+  protocol = 'tcp'
+  internal_port = 3000
+
+  [[services.ports]]
+    port = 443
+    handlers = ['tls', 'http']
+
+  [[services.ports]]
+    port = 80
+    handlers = ['http']
