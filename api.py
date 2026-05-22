@@ -55,8 +55,41 @@ scheduler.add_job(_nightly_scrape, "cron", hour=3, minute=0, id="nightly_scrape"
 # APP
 # =========================
 
+def _init_db():
+    """Crée les tables de base si elles n'existent pas (premier démarrage)."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS artists (
+            artist_name  TEXT PRIMARY KEY,
+            spotify_id   TEXT,
+            artist_image TEXT
+        );
+        CREATE TABLE IF NOT EXISTS spotify_stats (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            artist_name   TEXT,
+            scraping_date TEXT,
+            total_streams INTEGER DEFAULT 0,
+            total_daily   INTEGER DEFAULT 0,
+            lead_streams  INTEGER DEFAULT 0,
+            solo_streams  INTEGER DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS spotify_streams (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            artist_name   TEXT,
+            track_name    TEXT,
+            track_type    TEXT,
+            streams_total INTEGER DEFAULT 0,
+            streams_daily INTEGER DEFAULT 0,
+            scraping_date TEXT
+        );
+    """)
+    conn.commit()
+    conn.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _init_db()
     scheduler.start()
     print("[api] Démarrage — DB :", DB_PATH)
     print("[api] Scheduler actif — prochain run nocturne à 3h00")
