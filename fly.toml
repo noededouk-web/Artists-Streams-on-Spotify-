@@ -2,6 +2,7 @@ app = 'artists-streams-on-spotify-youtube'
 primary_region = 'ams'
 
 [build]
+  dockerfile = "Dockerfile"
 
 [env]
   PORT = '8000'
