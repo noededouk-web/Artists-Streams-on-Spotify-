@@ -56,35 +56,18 @@ scheduler.add_job(_nightly_scrape, "cron", hour=3, minute=0, id="nightly_scrape"
 # =========================
 
 def _init_db():
-    """Crée les tables de base si elles n'existent pas (premier démarrage)."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS artists (
-            artist_name  TEXT PRIMARY KEY,
-            spotify_id   TEXT,
-            artist_image TEXT
-        );
-        CREATE TABLE IF NOT EXISTS spotify_stats (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            artist_name   TEXT,
-            scraping_date TEXT,
-            total_streams INTEGER DEFAULT 0,
-            total_daily   INTEGER DEFAULT 0,
-            lead_streams  INTEGER DEFAULT 0,
-            solo_streams  INTEGER DEFAULT 0
-        );
-        CREATE TABLE IF NOT EXISTS spotify_streams (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            artist_name   TEXT,
-            track_name    TEXT,
-            track_type    TEXT,
-            streams_total INTEGER DEFAULT 0,
-            streams_daily INTEGER DEFAULT 0,
-            scraping_date TEXT
-        );
-    """)
-    conn.commit()
-    conn.close()
+    """Crée toutes les tables si elles n'existent pas (premier démarrage)."""
+    from database.db import (
+        create_streams_table, create_stats_table, create_artist_table,
+        create_kworb_albums_table, create_spotify_tracks_table,
+        create_album_tracks_table,
+    )
+    create_artist_table()
+    create_streams_table()
+    create_stats_table()
+    create_kworb_albums_table()
+    create_spotify_tracks_table()
+    create_album_tracks_table()
 
 
 @asynccontextmanager
