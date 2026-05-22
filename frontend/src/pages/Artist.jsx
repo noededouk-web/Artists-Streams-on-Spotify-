@@ -500,7 +500,7 @@ export default function Artist() {
     <div style={S.page}>
       <Nav />
 
-      <div style={S.main}>
+      <div className="main-pad">
         {/* ── Header artiste ── */}
         <div style={S.artistHdr}>
           <div style={S.avatar}>
@@ -518,7 +518,7 @@ export default function Artist() {
         </div>
 
         {/* ── KPIs ── */}
-        <div style={S.kpis}>
+        <div className="kpi-grid">
           <div style={S.kpi}>
             <div style={S.kpiLbl}>↗ Streams totaux</div>
             <div style={S.kpiVal}>{fmtStreams(kpis.totalStreams)}</div>
@@ -553,7 +553,7 @@ export default function Artist() {
         )}
 
         {/* ── Top 15 + Donut ── */}
-        <div style={S.row2}>
+        <div className="row-2col">
           <div style={S.card}>
             <div style={S.cardTitle}><span>Top 15 — Streams totaux</span></div>
             {top15.map((t, i) => (

@@ -30,7 +30,7 @@ const S = {
     background: 'var(--bg3)', border: '1px solid var(--border2)',
     color: 'var(--text2)', cursor: 'pointer',
   },
-  main: { padding: '28px 24px', maxWidth: 1200, margin: '0 auto' },
+  main: { maxWidth: 1200, margin: '0 auto' },
 
   pageHdr:   { marginBottom: 24 },
   pageTitle: { fontSize: 24, fontWeight: 800, letterSpacing: 1, color: 'var(--text)', lineHeight: 1 },
@@ -225,7 +225,7 @@ export default function Tracks() {
         </div>
       </nav>
 
-      <div style={S.main}>
+      <div style={S.main} className="main-pad">
         <div style={S.pageHdr}>
           <div style={S.pageTitle}>{name.toUpperCase()} — Titres & Albums</div>
           <div style={S.pageSub}>{allTracks.length} titres · {albums.length} albums</div>
@@ -258,6 +258,7 @@ export default function Tracks() {
           {/* ── Vue liste ── */}
           {view !== 'album' && (
             <>
+              <div className="table-wrap">
               <table style={S.table}>
                 <thead>
                   <tr>
@@ -328,6 +329,7 @@ export default function Tracks() {
                   ))}
                 </tbody>
               </table>
+              </div>{/* /table-wrap */}
               {visibleTracks.length < filteredTracks.length && (
                 <div style={{ textAlign: 'center', padding: '16px 0 4px' }}>
                   <button onClick={() => setPageSize(p => p + 50)} style={S.loadMore}>
