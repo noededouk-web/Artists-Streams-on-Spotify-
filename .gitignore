@@ -10,11 +10,11 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Credentials — NE JAMAIS COMMITER
-config.py
+# Credentials locaux — NE JAMAIS COMMITER
 .env
 *.env
 secrets.py
+config.local.py
 
 # Données locales
 data/spotify.db
