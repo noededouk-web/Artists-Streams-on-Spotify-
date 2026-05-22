@@ -1,22 +1,27 @@
-app = 'artists-streams-on-spotify-youtube'
-primary_region = 'ams'
+# fly.toml app configuration file generated for stream-analytics-api on 2026-05-22T14:56:33Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'stream-analytics-api'
+primary_region = 'cdg'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [env]
   PORT = '8000'
 
-[http_service]
-  internal_port = 8000
-  force_https = true
-  auto_stop_machines = true
-  auto_start_machines = true
-  min_machines_running = 0
-
-[mounts]
+[[mounts]]
   source = 'sqlite_data'
   destination = '/app/data'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
 
 [[vm]]
   size = 'shared-cpu-1x'
