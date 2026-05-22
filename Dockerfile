@@ -9,6 +9,6 @@ COPY . .
 
 RUN mkdir -p data
 
-EXPOSE 8000
+EXPOSE 10000
 
 CMD ["python", "api.py"]
