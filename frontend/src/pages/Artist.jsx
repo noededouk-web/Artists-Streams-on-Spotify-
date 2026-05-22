@@ -6,6 +6,27 @@ import {
   fmtStreams, fmtFull,
 } from '../api'
 
+const BASE = import.meta.env.VITE_API_URL || '/api'
+const H    = { 'ngrok-skip-browser-warning': '1' }
+
+async function fetchYoutube(name) {
+  const r = await fetch(`${BASE}/artists/${encodeURIComponent(name)}/youtube`, { headers: H })
+  if (!r.ok) return null
+  return r.json()
+}
+
+async function startYoutubeEnrich(name) {
+  const r = await fetch(`${BASE}/artists/${encodeURIComponent(name)}/youtube/enrich`, { method: 'POST', headers: H })
+  if (!r.ok) throw new Error('Enrichissement YouTube échoué')
+  return r.json()
+}
+
+async function fetchYoutubeStatus(name) {
+  const r = await fetch(`${BASE}/artists/${encodeURIComponent(name)}/youtube/enrich/status`, { headers: H })
+  if (!r.ok) return null
+  return r.json()
+}
+
 function cacheAge(lastUpdate) {
   if (!lastUpdate) return 'inconnu'
   const diffH = Math.floor((Date.now() - new Date(lastUpdate)) / 3_600_000)
@@ -333,6 +354,12 @@ export default function Artist() {
   const [data, setData]           = useState(null)
   const [albums, setAlbums]       = useState([])
   const [history, setHistory]     = useState([])
+  const [youtube, setYoutube]         = useState(null)
+  const [ytLoading, setYtLoading]     = useState(false)
+  const [ytEnriching, setYtEnriching] = useState(false)
+  const [ytProgress, setYtProgress]   = useState(null)   // {done, total, current}
+  const [ytError, setYtError]         = useState(null)
+  const ytPollRef = useRef(null)
   const [loading, setLoading]     = useState(true)
   const [notFound, setNotFound]   = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -347,12 +374,48 @@ export default function Artist() {
       fetchArtistHistory(n).catch(() => []),
     ])
       .then(([d, a, h]) => { setData(d); setAlbums(a); setHistory(h) })
+      .then(async () => {
+        setYtLoading(true)
+        try {
+          const yt = await fetchYoutube(n)
+          if (yt?.available) {
+            setYoutube(yt)
+          } else {
+            // Lancer l'enrichissement en arrière-plan et poller la progression
+            setYtEnriching(true)
+            await startYoutubeEnrich(n)
+            ytPollRef.current = setInterval(async () => {
+              const status = await fetchYoutubeStatus(n)
+              if (!status) return
+              if (status.status === 'running') {
+                setYtProgress({ done: status.done, total: status.total, current: status.current })
+              } else if (status.status === 'done') {
+                clearInterval(ytPollRef.current)
+                setYtEnriching(false)
+                setYtProgress(null)
+                const yt2 = await fetchYoutube(n)
+                setYoutube(yt2)
+              } else if (status.status === 'error') {
+                clearInterval(ytPollRef.current)
+                setYtEnriching(false)
+                setYtProgress(null)
+                setYtError(status.message)
+              }
+            }, 2000)
+          }
+        } catch (e) {
+          setYtError(e.message)
+          setYtEnriching(false)
+        } finally {
+          setYtLoading(false)
+        }
+      })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false))
   }
 
   useEffect(() => { loadData(name) }, [name])
-  useEffect(() => () => clearInterval(pollRef.current), [])
+  useEffect(() => () => { clearInterval(pollRef.current); clearInterval(ytPollRef.current) }, [])
 
   const handleRefresh = async () => {
     if (refreshing) return
@@ -548,6 +611,76 @@ export default function Artist() {
             <AlbumBarChart albums={albums.filter(a => a.albumType === 'own')} />
           </div>
         )}
+
+        {/* ── Section YouTube ── */}
+        <div style={{ ...S.card, marginBottom: 12 }}>
+          <div style={S.cardTitle}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ color: '#e05252' }}>▶</span> YouTube
+            </span>
+            {youtube?.available && (
+              <span style={{ fontSize: 9, color: 'var(--text3)', fontFamily: 'var(--font-mono)',
+                background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 4,
+                padding: '2px 8px' }}>
+                {youtube.videos?.length} vidéos
+              </span>
+            )}
+          </div>
+
+          {(ytLoading || ytEnriching) && (
+            <div style={{ padding: '4px 0' }}>
+              <div style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--font-mono)', marginBottom: ytProgress ? 8 : 0 }}>
+                {ytEnriching
+                  ? `⟳ Récupération YouTube… ${ytProgress ? `${ytProgress.done}/${ytProgress.total}` : ''}`
+                  : '⟳ Chargement…'}
+              </div>
+              {ytProgress && ytProgress.total > 0 && (
+                <>
+                  <div style={{ height: 3, background: 'var(--bg3)', borderRadius: 2, overflow: 'hidden', marginBottom: 6 }}>
+                    <div style={{ height: '100%', background: '#e05252', borderRadius: 2, transition: 'width 0.5s ease', width: `${Math.round((ytProgress.done / ytProgress.total) * 100)}%` }} />
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--font-mono)', fontStyle: 'italic' }}>
+                    {ytProgress.current}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {ytError && !ytLoading && !ytEnriching && (
+            <div style={{ fontSize: 11, color: '#f87171', fontFamily: 'var(--font-mono)', padding: '4px 0' }}>
+              {ytError}
+            </div>
+          )}
+
+          {youtube?.available && !ytLoading && !ytEnriching && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
+              <div style={{ background: 'var(--bg3)', borderRadius: 8, padding: '12px 16px' }}>
+                <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 6 }}>VUES TOTALES</div>
+                <div style={{ fontSize: 22, fontWeight: 800 }}>{fmtStreams(youtube.totalViews)}</div>
+              </div>
+              <div style={{ background: 'var(--bg3)', borderRadius: 8, padding: '12px 16px' }}>
+                <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 6 }}>VIDÉOS SOLO</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--purple)' }}>{youtube.soloCount}</div>
+                <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>{fmtStreams(youtube.soloViews)} vues</div>
+              </div>
+              <div style={{ background: 'var(--bg3)', borderRadius: 8, padding: '12px 16px' }}>
+                <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 6 }}>FEATURINGS</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#e05252' }}>{youtube.featCount}</div>
+                <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>{fmtStreams(youtube.featViews)} vues</div>
+              </div>
+              <div style={{ background: 'var(--bg3)', borderRadius: 8, padding: '12px 16px' }}>
+                <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 6 }}>TOP VIDÉO</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', lineHeight: 1.3 }}>
+                  {(youtube.topVideos?.[0]?.videoTitle || youtube.topVideos?.[0]?.trackName || '—').slice(0, 45)}
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>
+                  {fmtStreams(youtube.topVideos?.[0]?.views)} vues
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* ── Lien vers le détail ── */}
         <div

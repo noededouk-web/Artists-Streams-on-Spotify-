@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { fetchArtistAlbums, fetchArtistTracks, fmtStreams, fmtFull } from '../api'
 
+const BASE = import.meta.env.VITE_API_URL || '/api'
+const H    = { 'ngrok-skip-browser-warning': '1' }
+
+async function fetchYoutubeTracks(name) {
+  const r = await fetch(`${BASE}/artists/${encodeURIComponent(name)}/youtube`, { headers: H })
+  if (!r.ok) return null
+  return r.json()
+}
 
 const S = {
   page: { minHeight: '100vh', background: 'var(--bg)' },
@@ -39,13 +47,7 @@ const S = {
     background: 'var(--bg2)', border: '1px solid var(--border)',
     borderRadius: 'var(--radius-lg)', padding: '18px 20px',
   },
-  cardTitle: {
-    fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--font-mono)',
-    letterSpacing: 2, textTransform: 'uppercase', marginBottom: 16,
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  },
 
-  // Unified filter bar
   filterBar: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 18, flexWrap: 'wrap' },
   filterPill: {
     padding: '6px 18px', borderRadius: 20, fontSize: 12, fontWeight: 600,
@@ -61,7 +63,6 @@ const S = {
     color: 'var(--text2)', cursor: 'pointer',
   },
 
-  // Album dropdown
   albumSelect: {
     background: 'var(--bg2)', border: '1px solid var(--border2)',
     borderRadius: 8, padding: '9px 14px', color: 'var(--text)',
@@ -69,7 +70,6 @@ const S = {
   },
   albumMeta: { fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--font-mono)' },
 
-  // Table
   table: { width: '100%', borderCollapse: 'collapse' },
   th: {
     fontSize: 10, fontWeight: 600, color: 'var(--text3)', textAlign: 'left',
@@ -94,7 +94,6 @@ const S = {
   loading: { textAlign: 'center', padding: 80, color: 'var(--text3)', fontFamily: 'var(--font-mono)', fontSize: 12 },
 }
 
-// ─── Badge helper ─────────────────────────────────────────────────────────────
 function TypeBadge({ type }) {
   return (
     <span style={{
@@ -105,17 +104,16 @@ function TypeBadge({ type }) {
   )
 }
 
-// ─── Page Tracks ──────────────────────────────────────────────────────────────
 export default function Tracks() {
   const { name } = useParams()
   const navigate = useNavigate()
 
   const [albums, setAlbums]       = useState([])
   const [allTracks, setAllTracks] = useState([])
+  const [ytMap, setYtMap]         = useState({})
   const [loading, setLoading]     = useState(true)
 
-  // Unified filter state
-  const [view, setView]           = useState('all')   // 'all' | 'solo' | 'feat' | 'album'
+  const [view, setView]           = useState('all')
   const [search, setSearch]       = useState('')
   const [sortKey, setSortKey]     = useState('streams')
   const [sortAsc, setSortAsc]     = useState(false)
@@ -127,14 +125,24 @@ export default function Tracks() {
     Promise.all([
       fetchArtistAlbums(name),
       fetchArtistTracks(name, { limit: 500 }),
+      fetchYoutubeTracks(name).catch(() => null),
     ])
-      .then(([a, t]) => { setAlbums(a); setAllTracks(t) })
+      .then(([a, t, yt]) => {
+        setAlbums(a)
+        setAllTracks(t)
+        if (yt?.available && yt.tracks) {
+          const map = {}
+          yt.tracks.forEach(v => { if (v.trackName) map[v.trackName] = v })
+          setYtMap(map)
+        }
+      })
       .finally(() => setLoading(false))
   }, [name])
 
-  const ownAlbums  = albums.filter(a => a.albumType === 'own')
-  const featAlbums = albums.filter(a => a.albumType === 'feat')
+  const ownAlbums    = albums.filter(a => a.albumType === 'own')
+  const featAlbums   = albums.filter(a => a.albumType === 'feat')
   const currentAlbum = albums.find(a => a.name === selectedAlbum)
+  const hasYt        = Object.keys(ytMap).length > 0
 
   const toggleSort = (key) => {
     if (sortKey === key) setSortAsc(a => !a)
@@ -142,8 +150,11 @@ export default function Tracks() {
   }
 
   const exportCSV = () => {
-    const rows = [['#', 'Titre', 'Type', 'Album', 'Streams', 'Daily']]
-    allTracks.forEach((t, i) => rows.push([i + 1, t.name, t.type, t.albumName || '', t.streams, t.daily]))
+    const rows = [['#', 'Titre', 'Type', 'Album', 'Streams Spotify', 'Daily Spotify', ...(hasYt ? ['Vues YouTube'] : [])]]
+    allTracks.forEach((t, i) => {
+      const ytViews = ytMap[t.name]?.views ?? ''
+      rows.push([i + 1, t.name, t.type, t.albumName || '', t.streams, t.daily, ...(hasYt ? [ytViews] : [])])
+    })
     const csv  = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
     const url  = URL.createObjectURL(blob)
@@ -220,41 +231,31 @@ export default function Tracks() {
           <div style={S.pageSub}>{allTracks.length} titres · {albums.length} albums</div>
         </div>
 
-        {/* ── Section unifiée ── */}
         <div style={S.sectionTitle}>
           Titres
           <span style={S.sectionLine} />
         </div>
 
         <div style={S.card}>
-          {/* Filtre unifié */}
           <div style={S.filterBar}>
             {VIEWS.map(v => (
-              <button
-                key={v.key}
-                style={pillStyle(v.key)}
+              <button key={v.key} style={pillStyle(v.key)}
                 onClick={() => { setView(v.key); setSearch(''); setPageSize(50) }}
               >{v.label}</button>
             ))}
-
-            {/* Compteur + search + CSV seulement en mode liste */}
             {view !== 'album' && (
               <>
                 <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--font-mono)', marginLeft: 4 }}>
                   {filteredTracks.length} titre{filteredTracks.length > 1 ? 's' : ''}
                 </span>
-                <input
-                  style={S.searchInput}
-                  placeholder="Rechercher un titre…"
-                  value={search}
-                  onChange={e => { setSearch(e.target.value); setPageSize(50) }}
-                />
+                <input style={S.searchInput} placeholder="Rechercher un titre…" value={search}
+                  onChange={e => { setSearch(e.target.value); setPageSize(50) }} />
                 <button onClick={exportCSV} style={S.csvBtn} title="Exporter en CSV">↓ CSV</button>
               </>
             )}
           </div>
 
-          {/* ── Vue liste (tous / solo / feat) ── */}
+          {/* ── Vue liste ── */}
           {view !== 'album' && (
             <>
               <table style={S.table}>
@@ -266,11 +267,16 @@ export default function Tracks() {
                     </th>
                     <th style={S.th}>Type</th>
                     <th style={{ ...S.th, ...S.thR, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('streams')}>
-                      Streams {sortKey === 'streams' ? (sortAsc ? '↑' : '↓') : ''}
+                      Spotify {sortKey === 'streams' ? (sortAsc ? '↑' : '↓') : ''}
                     </th>
                     <th style={{ ...S.th, ...S.thR, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('daily')}>
                       Daily {sortKey === 'daily' ? (sortAsc ? '↑' : '↓') : ''}
                     </th>
+                    {hasYt && (
+                      <th style={{ ...S.th, ...S.thR }}>
+                        <span style={{ color: '#e05252' }}>▶</span> YouTube
+                      </th>
+                    )}
                     <th style={{ ...S.th, width: 28 }} />
                   </tr>
                 </thead>
@@ -288,20 +294,40 @@ export default function Tracks() {
                       <td style={S.td}><TypeBadge type={t.type} /></td>
                       <td style={{ ...S.td, ...S.tdR }}>{fmtFull(t.streams)}</td>
                       <td style={{ ...S.td, ...S.tdR }}>{fmtFull(t.daily)}</td>
+                      {hasYt && (() => {
+                        const yt = ytMap[t.name]
+                        return (
+                          <td style={{ ...S.td, ...S.tdR }}>
+                            {yt?.views > 0
+                              ? <span style={{ color: '#e05252' }}>{fmtFull(yt.views)}</span>
+                              : <span style={{ color: 'var(--text3)' }}>—</span>
+                            }
+                          </td>
+                        )
+                      })()}
                       <td style={{ ...S.td, textAlign: 'center', paddingRight: 0 }}>
-                        {t.spotifyTrackId && (
-                          <a href={`https://open.spotify.com/track/${t.spotifyTrackId}`} target="_blank" rel="noreferrer"
-                            style={S.linkIcon}
-                            onMouseEnter={e => { e.currentTarget.style.color = 'var(--text2)'; e.currentTarget.style.borderColor = 'var(--border2)' }}
-                            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text3)'; e.currentTarget.style.borderColor = 'transparent' }}
-                          >↗</a>
-                        )}
+                        {(() => {
+                          const yt = ytMap[t.name]
+                          const ytId = yt?.videoId
+                          return ytId ? (
+                            <a href={`https://www.youtube.com/watch?v=${ytId}`} target="_blank" rel="noreferrer"
+                              style={{ ...S.linkIcon, fontSize: 10 }}
+                              onMouseEnter={e => { e.currentTarget.style.color = '#e05252'; e.currentTarget.style.borderColor = '#e05252' }}
+                              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text3)'; e.currentTarget.style.borderColor = 'transparent' }}
+                            >▶</a>
+                          ) : t.spotifyTrackId ? (
+                            <a href={`https://open.spotify.com/track/${t.spotifyTrackId}`} target="_blank" rel="noreferrer"
+                              style={S.linkIcon}
+                              onMouseEnter={e => { e.currentTarget.style.color = 'var(--text2)'; e.currentTarget.style.borderColor = 'var(--border2)' }}
+                              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text3)'; e.currentTarget.style.borderColor = 'transparent' }}
+                            >↗</a>
+                          ) : null
+                        })()}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-
               {visibleTracks.length < filteredTracks.length && (
                 <div style={{ textAlign: 'center', padding: '16px 0 4px' }}>
                   <button onClick={() => setPageSize(p => p + 50)} style={S.loadMore}>
@@ -316,11 +342,7 @@ export default function Tracks() {
           {view === 'album' && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-                <select
-                  value={selectedAlbum}
-                  onChange={e => setSelectedAlbum(e.target.value)}
-                  style={S.albumSelect}
-                >
+                <select value={selectedAlbum} onChange={e => setSelectedAlbum(e.target.value)} style={S.albumSelect}>
                   <option value="">Sélectionner un album…</option>
                   {ownAlbums.length > 0 && (
                     <optgroup label="── Albums">
@@ -350,7 +372,6 @@ export default function Tracks() {
                   </span>
                 )}
               </div>
-
               {currentAlbum && (
                 <table style={S.table}>
                   <thead>
@@ -381,7 +402,6 @@ export default function Tracks() {
                   </tbody>
                 </table>
               )}
-
               {!currentAlbum && (
                 <div style={{ color: 'var(--text3)', fontFamily: 'var(--font-mono)', fontSize: 12, padding: '20px 0', textAlign: 'center' }}>
                   Sélectionne un album dans la liste ci-dessus.

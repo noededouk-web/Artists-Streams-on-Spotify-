@@ -51,6 +51,7 @@ export async function fetchPipelineStatus(artist) {
   return r.json()
 }
 
+
 export async function fetchArtistHistory(name) {
   const r = await fetch(`${BASE}/artists/${encodeURIComponent(name)}/history`, { headers })
   if (!r.ok) throw new Error('Erreur historique')

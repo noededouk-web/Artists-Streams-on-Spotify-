@@ -76,17 +76,11 @@ const S = {
   empty: { color: 'var(--text3)', fontFamily: 'var(--font-mono)', fontSize: 12, padding: '40px 0', textAlign: 'center' },
 }
 
-const PLATFORMS = [
-  { key: 'spotify',  label: '▶ Spotify', active: true  },
-  { key: 'youtube',  label: '▶ YouTube', active: false },
-]
-
 export default function Home() {
   const navigate  = useNavigate()
-  const [artists, setArtists]   = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [query, setQuery]       = useState('')
-  const [platform, setPlatform] = useState('spotify')
+  const [artists, setArtists] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [query, setQuery]     = useState('')
 
   useEffect(() => {
     fetchArtists()
@@ -117,34 +111,18 @@ export default function Home() {
           onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--green)'; e.currentTarget.style.color = 'var(--green)' }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border2)'; e.currentTarget.style.color = 'var(--text2)' }}
         >⇄ Comparer</button>
-        <div style={S.platformPill}>
-          {PLATFORMS.map(p => (
-            <button
-              key={p.key}
-              style={{
-                ...S.pill,
-                background:  p.key === platform ? 'var(--green-bg)' : 'transparent',
-                color:       p.key === platform ? 'var(--green)'    : 'var(--text3)',
-                cursor:      p.active ? 'pointer' : 'not-allowed',
-                opacity:     p.active ? 1 : 0.45,
-              }}
-              onClick={() => p.active && setPlatform(p.key)}
-              title={p.active ? '' : 'Bientôt disponible'}
-            >{p.label}</button>
-          ))}
-        </div>
       </nav>
 
       {/* ── Hero search ── */}
       <div style={S.hero}>
         <div style={S.heroLogo}>STREAM ANALYTICS</div>
-        <div style={S.heroSub}>Analyse de streams · {platform === 'spotify' ? 'Spotify' : 'YouTube'}</div>
+        <div style={S.heroSub}>Analyse de streams musicaux</div>
 
         <form style={{ width: '100%', maxWidth: 540 }} onSubmit={handleSearch}>
           <div style={S.searchWrap}>
             <input
               style={S.searchInput}
-              placeholder="Rechercher un artiste… (ex : Damso, Nekfeu)"
+              placeholder="Rechercher un artiste… (ex : Damso, Nekfeu, SCH)"
               value={query}
               onChange={e => setQuery(e.target.value)}
               autoFocus
@@ -156,6 +134,20 @@ export default function Home() {
             >
               Rechercher →
             </button>
+          </div>
+
+          {/* Pills plateforme — indicateurs, les deux se chargent simultanément */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12 }}>
+            {[
+              { label: '▶ Spotify', color: 'var(--green)',  bg: 'var(--green-bg)',        border: 'rgba(87,184,124,0.35)' },
+              { label: '▶ YouTube', color: '#e05252',       bg: 'rgba(224,82,82,0.1)',     border: 'rgba(224,82,82,0.35)' },
+            ].map(p => (
+              <div key={p.label} style={{
+                padding: '5px 18px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                background: p.bg, border: `1px solid ${p.border}`, color: p.color,
+                userSelect: 'none',
+              }}>{p.label}</div>
+            ))}
           </div>
         </form>
       </div>

@@ -1,12 +1,12 @@
 :root {
-  --bg:        #0d0d0d;
-  --bg2:       #141414;
-  --bg3:       #1c1c1c;
-  --border:    #222222;
-  --border2:   #2d2d2d;
-  --text:      #e0e0e0;
-  --text2:     #909090;
-  --text3:     #484848;
+  --bg:        #161616;
+  --bg2:       #1f1f1f;
+  --bg3:       #282828;
+  --border:    #303030;
+  --border2:   #3d3d3d;
+  --text:      #ececec;
+  --text2:     #a8a8a8;
+  --text3:     #636363;
   --green:     #57b87c;
   --green-bg:  rgba(87, 184, 124, 0.1);
   --purple:    #9272cf;
