@@ -157,9 +157,28 @@ def _resolve_artist(artist_name: str) -> str:
 # ENDPOINTS ARTISTES
 # =========================
 
+@app.get("/health")
+def health():
+    """Diagnostic endpoint."""
+    import os
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+        conn.close()
+        return {"status": "ok", "db": DB_PATH, "tables": [t[0] for t in tables], "db_exists": os.path.exists(DB_PATH)}
+    except Exception as e:
+        return {"status": "error", "detail": str(e), "db": DB_PATH}
+
+
 @app.get("/artists")
 def list_artists():
     """Liste tous les artistes en DB avec leurs stats de base (requête unique)."""
+    try:
+     return _list_artists_inner()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+def _list_artists_inner():
     df = _df("""
         SELECT
             a.artist_name, a.spotify_id, a.artist_image,
