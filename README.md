@@ -6,10 +6,22 @@
 ![Docker](https://img.shields.io/badge/Docker-nginx-2496ed?logo=docker&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-3-003b57?logo=sqlite&logoColor=white)
 ![yt-dlp](https://img.shields.io/badge/yt--dlp-YouTube-ff0000?logo=youtube&logoColor=white)
+![Render](https://img.shields.io/badge/Deployed-Render.com-46e3b7?logo=render&logoColor=white)
 
-Outil d'analyse de streams musicaux Spotify et YouTube. Il collecte automatiquement les données depuis [Kworb.net](https://kworb.net), les enrichit via les APIs Spotify et YouTube (yt-dlp), les stocke en base SQLite, et les expose dans un dashboard React interactif.
+> Tableau de bord analytique pour suivre les streams Spotify et les vues YouTube d'un artiste musical — sans quota, sans abonnement payant.
 
 **Demo en ligne :** [artists-streams-on-spotify-2.onrender.com](https://artists-streams-on-spotify-2.onrender.com)
+
+---
+
+## Pourquoi ce projet ?
+
+Spotify ne publie pas les vrais chiffres de streams via son API officielle (seulement un score de popularité 0–100). Ce projet contourne cette limite en :
+
+1. **Scraping Kworb.net** — site communautaire qui traque les streams Spotify en quasi-temps réel
+2. **Enrichissement Spotify API** — métadonnées des tracks (album, durée, pochette)
+3. **Vues YouTube via yt-dlp** — sans API key, sans quota, en recherchant `"{artiste} {titre}"` et en prenant la video la plus vue
+4. **Dashboard React interactif** — visualisation complète avec graphiques SVG, filtres, export CSV
 
 ---
 
@@ -29,10 +41,14 @@ Outil d'analyse de streams musicaux Spotify et YouTube. Il collecte automatiquem
 - **Colonne vues YouTube** — affichee cote a cote des streams Spotify dans le tableau des titres
 - **Lien direct** — clic sur ▶ pour ouvrir la video YouTube
 
+### Social
+- **Generateur de cartes Instagram** — image 1080×1080 prete a poster avec top 5 titres, KPIs, et vues YouTube
+
 ### General
 - **Importation silencieuse** — pipeline invisible avec barre de progression pour les nouveaux artistes
 - **Export CSV** — inclut Spotify streams + YouTube views
 - **Export Power BI / Excel** — donnees pret a l'emploi
+- **Responsive** — optimise pour mobile et desktop
 
 ---
 
@@ -61,6 +77,12 @@ Outil d'analyse de streams musicaux Spotify et YouTube. Il collecte automatiquem
 │                                                                  │
 │   Home ── Artist ── Tracks & Albums ── Compare                   │
 └──────────────────────────────────────────────────────────────────┘
+                             │
+┌──────────────────────────────────────────────────────────────────┐
+│                    SOCIAL (Pillow)                                │
+│                                                                  │
+│  social/instagram_card.py → PNG 1080x1080 prete a poster         │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -79,6 +101,7 @@ Outil d'analyse de streams musicaux Spotify et YouTube. Il collecte automatiquem
 | Frontend | React 18 · React Router · Vite 5 |
 | Conteneur local | Docker multi-stage · nginx |
 | Deploiement | Render.com (backend + frontend) |
+| Cartes sociales | Pillow (generation d'images PNG) |
 
 ---
 
@@ -134,6 +157,26 @@ npm run dev    # http://localhost:3000 avec proxy HMR vers l'API
 
 ---
 
+## Generateur de cartes Instagram
+
+Genere une image 1080×1080 avec les stats d'un artiste, prete a poster.
+
+```bash
+pip install Pillow
+python social/instagram_card.py DAMSO
+# → social/output/damso_card.png
+```
+
+Options :
+```bash
+python social/instagram_card.py Jul --output jul_card.png
+python social/instagram_card.py DAMSO --api https://ton-backend.onrender.com
+```
+
+La carte inclut : nom de l'artiste · streams totaux · nombre de titres · vues YouTube cumulees · top 5 titres avec streams · date de generation.
+
+---
+
 ## Deploiement (Render.com — gratuit)
 
 ### Backend (Web Service)
@@ -166,7 +209,6 @@ stream-analytics/
 ├── config.py                   # Configuration via variables d'env
 ├── requirements.txt
 ├── Dockerfile                  # Image Docker pour le backend
-├── fly.toml                    # Config Fly.io (alternatif a Render)
 │
 ├── scraper/
 │   ├── kworb_scraper.py        # Scraping Kworb.net (songs + albums)
@@ -181,6 +223,10 @@ stream-analytics/
 │
 ├── export/
 │   └── exporter.py             # Export CSV / Excel / Power BI
+│
+├── social/
+│   ├── instagram_card.py       # Generateur d'images Instagram (Pillow)
+│   └── output/                 # Images generees (gitignore)
 │
 └── frontend/
     ├── Dockerfile              # Build multi-stage nginx
@@ -238,8 +284,3 @@ L'enrichissement YouTube utilise **yt-dlp** (sans cle API, sans quota) :
 - Recherche `"{artiste} {titre}"` → prend la video avec le plus de vues
 - ~2 min pour 50 tracks (2 workers en parallele sur le free tier Render)
 - Les vues YouTube sont les vues de la video officielle, pas les streams audio
-
-### Certifications SNEP
-Les seuils officiels SNEP pour les singles (streaming) :
-- Or : 15M streams · Platine : 30M · 2x Platine : 60M · Diamant : 150M
-- Les certifications sont accordees a la demande du label, pas automatiquement

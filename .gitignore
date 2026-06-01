@@ -27,3 +27,6 @@ data/*.csv
 # Node
 frontend/node_modules/
 frontend/dist/
+
+# Images generees (social)
+social/output/

@@ -21,3 +21,6 @@ spotipy==2.25.1
 
 # YouTube
 yt-dlp
+
+# Social
+Pillow>=10.0.0
